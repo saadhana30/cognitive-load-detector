@@ -1,3 +1,6 @@
+if not (repo_root / "outputs_model.pkl").exists():
+    import subprocess
+    subprocess.run(["python", "src/model/train.py"])
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
