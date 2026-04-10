@@ -32,7 +32,6 @@ def prepare_data(df: pd.DataFrame):
 
 def build_hybrid_model():
     xgb = XGBClassifier(
-        use_label_encoder=False,
         eval_metric="mlogloss",
         random_state=42
     )

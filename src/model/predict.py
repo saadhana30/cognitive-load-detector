@@ -1,30 +1,22 @@
 import joblib
-import pandas as pd
-from pathlib import Path
+import numpy as np
 
-# load model
-repo_root = Path(__file__).resolve().parents[2]
-model_path = repo_root / "outputs_model.pkl"
+model = joblib.load("outputs_model.pkl")
 
-model = joblib.load(model_path)
+def predict_load(features):
+    features = np.array(features).reshape(1, -1)
 
-# load some data (for testing)
-data_path = repo_root / "data" / "processed" / "labeled_features.csv"
-df = pd.read_csv(data_path)
+    pred = model.predict(features)[0]
+    probs = model.predict_proba(features)[0]
 
-# take sample input (first 5 rows)
-X = df.drop(columns=["cognitive_load"])
-X = X.select_dtypes(include=["int64", "float64"])
+    labels = ["low", "medium", "high"]
 
-sample = X.head(5)
+    prediction = labels[pred]
 
-# predict
-predictions = model.predict(sample)
+    probability = {
+        "low": float(probs[0]),
+        "medium": float(probs[1]),
+        "high": float(probs[2])
+    }
 
-# convert back to labels
-mapping = {0: "low", 1: "medium", 2: "high"}
-predictions = [mapping[p] for p in predictions]
-
-print("Predictions:")
-for i, pred in enumerate(predictions):
-    print(f"Sample {i+1}: {pred}")
+    return prediction, probability

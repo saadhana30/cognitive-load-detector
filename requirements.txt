@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pandas
+joblib
+whisper
+ffmpeg-python
+numpy
+scikit-learn
+xgboost
