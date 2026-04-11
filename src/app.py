@@ -3,12 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import joblib
 import pandas as pd
-from pathlib import Path
 import os
 import tempfile
+import sys
 
-from src.database import init_db, save_feedback
-from src.speech_to_text import audio_to_text
+# ✅ Fix import paths (IMPORTANT for deployment)
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from database import init_db, save_feedback
+from speech_to_text import audio_to_text
 
 app = FastAPI()
 
@@ -24,14 +27,11 @@ app.add_middleware(
 # ✅ INIT DB
 init_db()
 
-# ✅ PATHS
-repo_root = Path(__file__).resolve().parents[1]
+# ✅ LOAD MODEL (must exist in root)
+model = joblib.load("outputs_model.pkl")
 
-# ✅ LOAD MODEL (IMPORTANT: file must exist locally or on server)
-model = joblib.load(repo_root / "outputs_model.pkl")
-
-# ✅ LOAD FEATURES ONCE (FAST)
-train_df = pd.read_csv(repo_root / "data/processed/labeled_features.csv")
+# ✅ LOAD FEATURES
+train_df = pd.read_csv("data/processed/labeled_features.csv")
 feature_cols = train_df.drop(columns=["cognitive_load"]) \
                        .select_dtypes(include=["int64", "float64"]) \
                        .columns
@@ -41,7 +41,7 @@ mapping = {0: "low", 1: "medium", 2: "high"}
 
 @app.get("/")
 def home():
-    return {"message": "Cognitive Load API Running"}
+    return {"message": "Cognitive Load API Running 🚀"}
 
 
 @app.post("/predict")
@@ -55,7 +55,7 @@ async def predict(file: UploadFile = File(...)):
             file_path = temp.name
 
         # --------------------------
-        # AUDIO → TEXT (WHISPER)
+        # AUDIO → TEXT
         # --------------------------
         text = audio_to_text(file_path)
 
@@ -81,7 +81,7 @@ async def predict(file: UploadFile = File(...)):
         label = mapping[int(pred)]
 
         # --------------------------
-        # SUMMARY (BETTER)
+        # SUMMARY
         # --------------------------
         if text:
             sentences = text.split(".")
@@ -90,7 +90,7 @@ async def predict(file: UploadFile = File(...)):
             summary = "No clear speech detected."
 
         # --------------------------
-        # QUIZ (DYNAMIC)
+        # QUIZ
         # --------------------------
         if text:
             topic = " ".join(text.split()[:5])
