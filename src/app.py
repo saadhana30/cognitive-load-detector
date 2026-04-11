@@ -1,6 +1,3 @@
-if not (repo_root / "outputs_model.pkl").exists():
-    import subprocess
-    subprocess.run(["python", "src/model/train.py"])
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
@@ -8,13 +5,14 @@ import joblib
 import pandas as pd
 from pathlib import Path
 import os
+import tempfile
 
 from src.database import init_db, save_feedback
 from src.speech_to_text import audio_to_text
 
 app = FastAPI()
 
-# ✅ CORS
+# ✅ CORS (frontend connection)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,10 +27,10 @@ init_db()
 # ✅ PATHS
 repo_root = Path(__file__).resolve().parents[1]
 
-# ✅ LOAD MODEL ONCE (FAST)
+# ✅ LOAD MODEL (IMPORTANT: file must exist locally or on server)
 model = joblib.load(repo_root / "outputs_model.pkl")
 
-# ✅ LOAD FEATURE COLUMNS ONCE (FAST)
+# ✅ LOAD FEATURES ONCE (FAST)
 train_df = pd.read_csv(repo_root / "data/processed/labeled_features.csv")
 feature_cols = train_df.drop(columns=["cognitive_load"]) \
                        .select_dtypes(include=["int64", "float64"]) \
@@ -43,27 +41,23 @@ mapping = {0: "low", 1: "medium", 2: "high"}
 
 @app.get("/")
 def home():
-    return {"message": "API Running"}
+    return {"message": "Cognitive Load API Running"}
 
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     try:
         # --------------------------
-        # SAVE FILE
+        # SAVE FILE (DEPLOY SAFE)
         # --------------------------
-        file_path = f"temp_{file.filename}"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp:
+            shutil.copyfileobj(file.file, temp)
+            file_path = temp.name
 
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
         # --------------------------
-        # AUDIO → TEXT (FAST LIMITED)
+        # AUDIO → TEXT (WHISPER)
         # --------------------------
-        try:
-            text = audio_to_text(file_path)
-        except:
-            text = ""
+        text = audio_to_text(file_path)
 
         # --------------------------
         # FEATURE CREATION
@@ -79,7 +73,7 @@ async def predict(file: UploadFile = File(...)):
         df = df[feature_cols]
 
         # --------------------------
-        # PREDICT
+        # PREDICTION
         # --------------------------
         pred = model.predict(df)[0]
         probs = model.predict_proba(df)[0]
@@ -87,22 +81,19 @@ async def predict(file: UploadFile = File(...)):
         label = mapping[int(pred)]
 
         # --------------------------
-        # 🔥 BETTER SUMMARY
+        # SUMMARY (BETTER)
         # --------------------------
         if text:
             sentences = text.split(".")
-            summary = ". ".join(sentences[:2])[:250]
+            summary = ". ".join(sentences[:2])[:300]
         else:
             summary = "No clear speech detected."
 
         # --------------------------
-        # 🔥 BETTER QUIZ
+        # QUIZ (DYNAMIC)
         # --------------------------
-        quiz = []
         if text:
-            words = text.split()
-            topic = " ".join(words[:5])
-
+            topic = " ".join(text.split()[:5])
             quiz = [
                 f"What is the main concept discussed about '{topic}'?",
                 f"Explain the idea behind '{topic}'.",
@@ -112,7 +103,7 @@ async def predict(file: UploadFile = File(...)):
             quiz = ["No quiz generated"]
 
         # --------------------------
-        # CLEAN FILE
+        # CLEAN TEMP FILE
         # --------------------------
         os.remove(file_path)
 
