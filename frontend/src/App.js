@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import axios from "axios";
 import "./App.css";
 
+const API_URL = "http://127.0.0.1:8000"; // ✅ change here if deployed later
+
 function App() {
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
@@ -18,7 +20,7 @@ function App() {
       setLoading(true);
 
       const res = await axios.post(
-        "http://127.0.0.1:8000/predict",
+        `${API_URL}/predict`,
         formData
       );
 
@@ -31,7 +33,7 @@ function App() {
   };
 
   const sendFeedback = async () => {
-    await axios.post("http://127.0.0.1:8000/feedback", {
+    await axios.post(`${API_URL}/feedback`, {
       prediction: result.prediction,
       feedback: feedback,
     });
