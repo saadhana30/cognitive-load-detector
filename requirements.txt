@@ -2,9 +2,9 @@ fastapi
 uvicorn
 pandas
 joblib
-ffmpeg-python
 numpy
 scikit-learn
-xgboost
+xgboost==1.7.6
 python-multipart
+ffmpeg-python
 faster-whisper

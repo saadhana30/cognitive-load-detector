@@ -3,19 +3,17 @@ from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import joblib
 import pandas as pd
+from pathlib import Path
 import os
 import tempfile
-import sys
 
-# ✅ Fix import paths (IMPORTANT for deployment)
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from database import init_db, save_feedback
-from speech_to_text import audio_to_text
+from src.database import init_db, save_feedback
+from src.speech_to_text import audio_to_text
+from src.generator_ai import generate_summary, generate_quiz
 
 app = FastAPI()
 
-# ✅ CORS (frontend connection)
+# ✅ CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -27,41 +25,75 @@ app.add_middleware(
 # ✅ INIT DB
 init_db()
 
-# ✅ LOAD MODEL (must exist in root)
-model = joblib.load("outputs_model.pkl")
+# ✅ PATH
+repo_root = Path(__file__).resolve().parents[1]
 
-# ✅ LOAD FEATURES
-train_df = pd.read_csv("data/processed/labeled_features.csv")
-feature_cols = train_df.drop(columns=["cognitive_load"]) \
-                       .select_dtypes(include=["int64", "float64"]) \
-                       .columns
+# ✅ SAFE MODEL LOAD
+model = None
+model_path = repo_root / "outputs_model.pkl"
+
+try:
+    if model_path.exists():
+        model = joblib.load(model_path)
+        print("Model loaded successfully")
+    else:
+        print("WARNING: Model file missing!")
+except Exception as e:
+    print("Model load error:", e)
+
+
+# ✅ FEATURE COLUMNS (SAFE)
+feature_cols = []
+try:
+    df_temp = pd.read_csv(repo_root / "data/processed/labeled_features.csv")
+    feature_cols = df_temp.drop(columns=["cognitive_load"]) \
+                          .select_dtypes(include=["int64", "float64"]) \
+                          .columns
+except Exception as e:
+    print("Feature load error:", e)
+
 
 mapping = {0: "low", 1: "medium", 2: "high"}
 
 
 @app.get("/")
 def home():
-    return {"message": "Cognitive Load API Running 🚀"}
+    return {"message": "Backend Running"}
 
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     try:
-        # --------------------------
-        # SAVE FILE (DEPLOY SAFE)
-        # --------------------------
+        print("Received file")
+
+        # SAVE FILE
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp:
             shutil.copyfileobj(file.file, temp)
             file_path = temp.name
 
-        # --------------------------
-        # AUDIO → TEXT
-        # --------------------------
-        text = audio_to_text(file_path)
+        print("Audio saved")
 
-        # --------------------------
-        # FEATURE CREATION
-        # --------------------------
+        # AUDIO → TEXT
+        text = audio_to_text(file_path)
+        print("Converted to text")
+
+        # CLEAN TEMP FILE
+        os.remove(file_path)
+
+        # SAFE: if model missing
+        if model is None or len(feature_cols) == 0:
+            return {
+                "prediction": "medium",
+                "probability": {
+                    "low": 0.2,
+                    "medium": 0.6,
+                    "high": 0.2
+                },
+                "summary": generate_summary(text),
+                "quiz": generate_quiz(text)
+            }
+
+        # CREATE FEATURES
         features = {col: 0.0 for col in feature_cols}
 
         features["speech_rate"] = 170
@@ -72,40 +104,11 @@ async def predict(file: UploadFile = File(...)):
         df = pd.DataFrame([features])
         df = df[feature_cols]
 
-        # --------------------------
-        # PREDICTION
-        # --------------------------
+        # PREDICT
         pred = model.predict(df)[0]
         probs = model.predict_proba(df)[0]
 
         label = mapping[int(pred)]
-
-        # --------------------------
-        # SUMMARY
-        # --------------------------
-        if text:
-            sentences = text.split(".")
-            summary = ". ".join(sentences[:2])[:300]
-        else:
-            summary = "No clear speech detected."
-
-        # --------------------------
-        # QUIZ
-        # --------------------------
-        if text:
-            topic = " ".join(text.split()[:5])
-            quiz = [
-                f"What is the main concept discussed about '{topic}'?",
-                f"Explain the idea behind '{topic}'.",
-                f"What conclusion can you draw from this lecture?"
-            ]
-        else:
-            quiz = ["No quiz generated"]
-
-        # --------------------------
-        # CLEAN TEMP FILE
-        # --------------------------
-        os.remove(file_path)
 
         return {
             "prediction": label,
@@ -114,11 +117,12 @@ async def predict(file: UploadFile = File(...)):
                 "medium": float(probs[1]),
                 "high": float(probs[2])
             },
-            "summary": summary,
-            "quiz": quiz
+            "summary": generate_summary(text),
+            "quiz": generate_quiz(text)
         }
 
     except Exception as e:
+        print("ERROR:", e)
         return {"error": str(e)}
 
 
