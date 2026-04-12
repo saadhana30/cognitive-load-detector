@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import "./App.css";
 
-const API_URL = "http://127.0.0.1:8000"; // ✅ change here if deployed later
+const API_URL = "https://cognitive-load-detector.onrender.com"; // ✅ change here if deployed later
 
 function App() {
   const [file, setFile] = useState(null);
