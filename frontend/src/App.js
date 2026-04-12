@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import "./App.css";
 
-const API_URL = "https://cognitive-load-detector.onrender.com"; // ✅ change here if deployed later
+const API_URL = "https://cognitive-load-detector.onrender.com";
 
 function App() {
   const [file, setFile] = useState(null);
@@ -11,7 +11,7 @@ function App() {
   const [loading, setLoading] = useState(false);
 
   const handleUpload = async () => {
-    if (!file) return alert("Upload file");
+    if (!file) return alert("Upload a file first");
 
     const formData = new FormData();
     formData.append("file", file);
@@ -19,15 +19,15 @@ function App() {
     try {
       setLoading(true);
 
-      const res = await axios.post(
-        `${API_URL}/predict`,
-        formData
-      );
+      const res = await axios.post(`${API_URL}/predict`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
       setResult(res.data);
-      setLoading(false);
     } catch (err) {
-      alert("Error connecting to backend");
+      console.error(err);
+      alert("Backend error. Check console.");
+    } finally {
       setLoading(false);
     }
   };
@@ -38,56 +38,70 @@ function App() {
       feedback: feedback,
     });
 
-    alert("Feedback submitted");
+    alert("Feedback submitted!");
     setFeedback("");
   };
 
   return (
-    <div className="container">
-      <h1 className="title">COGNIFY</h1>
-      <p className="subtitle">
-        Understand your lecture better. Analyze cognitive load with AI.
+    <div className="app">
+      <h1 className="logo">COGNIFY</h1>
+      <p className="tagline">
+        Understand your lecture better with AI-powered cognitive insights
       </p>
 
-      <div className="card">
-        <h2>Upload Lecture Audio</h2>
+      {/* Upload Section */}
+      <div className="card upload-card">
         <input type="file" onChange={(e) => setFile(e.target.files[0])} />
         <button onClick={handleUpload}>Analyze Lecture</button>
       </div>
 
-      {loading && <p className="loading">⚡ Processing audio...</p>}
+      {/* Loading */}
+      {loading && (
+        <div className="loading">
+          <div className="spinner"></div>
+          <p>Analyzing your lecture...</p>
+        </div>
+      )}
 
+      {/* Results */}
       {result && (
-        <div className="results">
+        <div className="card results-card">
           <h2>
-            Prediction:{" "}
+            Cognitive Load:{" "}
             <span className="highlight">
               {result.prediction?.toUpperCase()}
             </span>
           </h2>
 
-          <h3>Probability:</h3>
-          <p>Low: {result.probability?.low?.toFixed(3)}</p>
-          <p>Medium: {result.probability?.medium?.toFixed(3)}</p>
-          <p>High: {result.probability?.high?.toFixed(3)}</p>
+          <div className="probability">
+            <div>Low: {result.probability?.low?.toFixed(3)}</div>
+            <div>Medium: {result.probability?.medium?.toFixed(3)}</div>
+            <div>High: {result.probability?.high?.toFixed(3)}</div>
+          </div>
 
-          <h3>Summary:</h3>
-          <p>{result.summary}</p>
+          <div className="section">
+            <h3>🧠 Summary</h3>
+            <p>{result.summary}</p>
+          </div>
 
-          <h3>Quiz:</h3>
-          <ul>
-            {result.quiz?.map((q, i) => (
-              <li key={i}>{q}</li>
-            ))}
-          </ul>
+          <div className="section">
+            <h3>📚 Quiz</h3>
+            <ul>
+              {result.quiz?.map((q, i) => (
+                <li key={i}>{q}</li>
+              ))}
+            </ul>
+          </div>
 
-          <h3>Give Feedback</h3>
-          <input
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder="Enter feedback"
-          />
-          <button onClick={sendFeedback}>Submit Feedback</button>
+          <div className="feedback">
+            <h3>💬 Feedback</h3>
+            <input
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="Your thoughts..."
+            />
+            <button onClick={sendFeedback}>Submit</button>
+          </div>
         </div>
       )}
     </div>

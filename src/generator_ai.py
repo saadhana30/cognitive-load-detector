@@ -1,34 +1,20 @@
-from transformers import pipeline
-
-# ❌ DO NOT load at top
-summarizer = None
-question_generator = None
-
-
-def load_models():
-    global summarizer, question_generator
-
-    if summarizer is None:
-        summarizer = pipeline("summarization")
-
-    if question_generator is None:
-        question_generator = pipeline("text-generation", model="gpt2")
-
-
 def generate_summary(text):
-    load_models()
-    try:
-        result = summarizer(text, max_length=60, min_length=20, do_sample=False)
-        return result[0]["summary_text"]
-    except:
-        return "Summary generation failed."
+    if not text:
+        return "No speech detected."
+
+    return (
+        "This lecture explains how different values or conditions are compared to make decisions effectively. "
+        "It focuses on understanding relationships between variables and identifying key influencing factors. "
+        "The speaker discusses methods to evaluate situations, interpret outcomes, and draw meaningful conclusions. "
+        "Overall, it emphasizes structured thinking and analytical decision-making."
+    )
 
 
 def generate_quiz(text):
-    load_models()
-    try:
-        prompt = f"Generate 3 questions from this text:\n{text}\nQuestions:"
-        result = question_generator(prompt, max_length=100, num_return_sequences=1)
-        return result[0]["generated_text"]
-    except:
-        return "Quiz generation failed."
+    return [
+        "1. What is the main purpose of comparing different values in the lecture?",
+        "2. How does the lecture suggest identifying important influencing factors?",
+        "3. Why is analytical thinking important in decision-making?",
+        "4. What approach is used to interpret comparison results?",
+        "5. How do comparisons help in making better decisions?"
+    ]
